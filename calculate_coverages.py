@@ -7,7 +7,7 @@ import click
 from glob import glob
 import gzip
 import lzma
-
+from cover import SortedRangeList
 
 
 @click.command()
@@ -19,7 +19,7 @@ def calculate_coverages(input, output, database):
     ###################################
     #Calculate coverage of each contig#
     ###################################
-    gotu_dict = defaultdict(set)
+    gotu_dict = defaultdict(SortedRangeList)
     file_list = glob(input + "/*.sam")
     file_list_gz = glob(input + "/*.sam.gz")
     file_list_xz = glob(input + "/*.sam.xz")
@@ -50,12 +50,11 @@ def calculate_coverages(input, output, database):
                 length_string = linesplit[5]
                 length = sum([int(x) for x in re.split("[a-zA-Z]",length_string) if x])
                 #Add range to contig_dict
-                for i in range(location, location+length):
-                    gotu_dict[gotu].add(i)
+                gotu_dict[gotu].add_range(location, location + length - 1)
             print("Num GOTUs", len(gotu_dict))
             sumsize = 0
             for gotu in gotu_dict:
-                sumsize += len(gotu_dict[gotu])
+                sumsize += len(gotu_dict[gotu].ranges)
             print("Rough mem size:", sumsize)
 
     ###################################

@@ -9,7 +9,6 @@ import gzip
 import lzma
 from cover import SortedRangeList
 
-
 @click.command()
 @click.option('-i',"--input", required=True, help="Input: Directory of sam files (files must end in .sam).")
 @click.option('-o',"--output", required=True, help='Output: file name for list of coverages.')
@@ -39,6 +38,8 @@ def calculate_coverages(input, output, database):
                 samfile.strip(),
                 mode='rt',
                 encoding='utf-8')
+        else:
+            raise IOError("Unrecognized file extension on '%s'." % samfile)
 
         with open_sam_file:
             for line in open_sam_file:

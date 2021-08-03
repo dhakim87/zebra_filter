@@ -8,7 +8,7 @@ from glob import glob
 import gzip
 import lzma
 from cover import SortedRangeList
-from zebra_pdf import compute_probability_coverage_greater_than
+from zebra_pdf import compute_probability_coverage_greater_than_v2
 
 @click.command()
 @click.option('-i',"--input", required=True, help="Input: Directory of sam files (files must end in .sam).")
@@ -96,7 +96,7 @@ def calculate_coverages(input, output, database):
     cov = cov.join(md, how="left")
     # Calculate coverage percent
     cov["coverage_ratio"] = cov.apply(func= lambda x : x["covered_length"]/x["total_length"], axis=1)
-    cov["p_coverage"] = cov.apply(func = lambda x : compute_probability_coverage_greater_than(
+    cov["p_coverage"] = cov.apply(func = lambda x : compute_probability_coverage_greater_than_v2(
         x["coverage_ratio"], x["total_length"], x["mean_read_len"], x["num_reads"]), axis=1)
     cov = cov.loc[:,["covered_length","total_length","coverage_ratio","strain", "num_reads", "mean_read_len", "p_coverage"]]
 

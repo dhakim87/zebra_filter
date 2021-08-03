@@ -10,18 +10,27 @@
 #  closed form algebraic solution
 
 import random
-from scipy.stats import binom
+from scipy.stats import binom,norm
 from math import ceil, sqrt
 import copy
 
 
 if __name__ == "__main__":
     # Modify to plot coverage for different scenarios
-    GENOME_LENGTH = 3878815
+    GENOME_LENGTH = 32892
     READ_LENGTH = 149
-    NUM_READS = 173
+    NUM_READS = 600
     # Modify number of trials done in empirical simulations
     NUM_TRIALS = 1000
+
+
+def compute_probability_coverage_greater_than_v2(coverage, genome_length, mean_read_length, num_reads):
+    mean_read_length = ceil(mean_read_length)
+    # Uses the closed form for mean and variance to assign p values
+    mean, std_dev = simplified_algebra_correct(genome_length, mean_read_length, num_reads)
+
+    zscore = (mean-coverage) / std_dev
+    return norm.cdf(zscore)
 
 
 def compute_probability_coverage_greater_than(coverage, genome_length, mean_read_length, num_reads):
@@ -131,38 +140,18 @@ def dyn_prog_algebra(genome_length, read_length, num_reads):
     return p_arr
 
 
-# This makes some false assumptions to create a
-# binomial distribution that is very close to the pdf
-# but is a little bit too wide.  (Mean coverage is correct)
-def simplified_algebra_wrong(genome_length, read_length, num_reads):
-    # This wrongly assumes a read can be in multiple buckets
-    # This model gets the right mean, but slightly overestimates
-    # the bounds on the confidence interval.  Its very easy to calculate.
+# https://math.stackexchange.com/questions/32800/probability-distribution-of-coverage-of-a-set-after-x-independently-randomly
+def simplified_algebra_correct(genome_length, read_length, num_reads):
+    # Internet shows a closed form for the mean and variance of this distribution!
     num_buckets = ceil(genome_length / read_length)
-    # Odds of a read being in a bucket is 1/num_buckets.
-    # Odds of a read not being in a bucket is (num_buckets-1)/num_buckets
-    # Odds of a bucket not being covered by any of n reads is:
-    #   ((num_buckets-1)/num_buckets)**n
 
-    # Expected coverage is the fraction of buckets
-    # that are covered by at least 1 read
-    # coverage = 1 - ((num_buckets-1)/num_buckets)**n
-    coverage = 1 - ((num_buckets-1)/num_buckets)**num_reads
+    n = num_buckets
+    x = num_reads
+    mean_buckets_covered = n * (1 - (1 - (1/n)) ** x)
+    variance_buckets_covered = n * (1 - 1/n)**x + n**2 * (1 - 1/n) * (1 - 2/n) ** x - n**2 * (1 - 1 / n) ** (2 * x)
+    std_dev = sqrt(variance_buckets_covered)
 
-    # We (falsely) assume all buckets have the same
-    # independent chance of being covered,
-    # we can calculate the confidence interval for coverage
-    # using binomial distribution where num_buckets
-    # is the number of trials and coverage is the
-    # weighting of the coin
-    n, p = num_buckets, coverage
-    mean, var, skew, kurt = binom.stats(n, p, moments='mvsk')
-
-    # Now we build a confidence interval.  scipy can only do two sided,
-    # but we can upgrade this with a one sided one later if we so choose.
-    # we just have to do it ourselves.
-    min_bound, max_bound = binom.interval(0.90, n, p)
-    return mean/num_buckets, min_bound/num_buckets, max_bound/num_buckets
+    return mean_buckets_covered / n, std_dev / n
 
 
 if __name__ == "__main__":
@@ -174,14 +163,14 @@ if __name__ == "__main__":
     t1 = random_trial(NUM_TRIALS, GENOME_LENGTH, READ_LENGTH, NUM_READS)
     t2 = simplified_trial(NUM_TRIALS, GENOME_LENGTH, READ_LENGTH, NUM_READS)
     full_pdf = dyn_prog_algebra(GENOME_LENGTH, READ_LENGTH, NUM_READS)
-    mean_coverage, min_bound_binom, max_bound_binom = \
-        simplified_algebra_wrong(GENOME_LENGTH, READ_LENGTH, NUM_READS)
+    mean_coverage, std_dev = simplified_algebra_correct(GENOME_LENGTH, READ_LENGTH, NUM_READS)
 
     print("Algebraic predictions")
     print("Mean coverage:")
     print(mean_coverage)
     print("90% confidence interval for coverage (binom approximation)")
-    print([min_bound_binom, max_bound_binom])
+    min_bound, max_bound = (mean_coverage - std_dev * 1.645, mean_coverage + std_dev * 1.645)
+    print([min_bound, max_bound])
     print("Full PDF")
     print(full_pdf)
 
@@ -204,8 +193,8 @@ if __name__ == "__main__":
     print("Simplified Randomized Trial")
     print(np.mean(t2))
 
-    in_confidence_t1 = [x for x in t1 if min_bound_binom <= x <= max_bound_binom]
-    in_confidence_t2 = [x for x in t2 if min_bound_binom <= x <= max_bound_binom]
+    in_confidence_t1 = [x for x in t1 if min_bound <= x <= max_bound]
+    in_confidence_t2 = [x for x in t2 if min_bound <= x <= max_bound]
 
     in_confidence_t1_exact = [x for x in t1 if min_bound_95_exact <= x]
     in_confidence_t2_exact = [x for x in t2 if min_bound_95_exact <= x]
@@ -216,19 +205,20 @@ if __name__ == "__main__":
     print(len(in_confidence_t1_exact) / len(t1))
     print("Simplified Randomized Trial")
     print(len(in_confidence_t2) / len(t2))
-    print(len(in_confidence_t1_exact) / len(t1))
-
+    print(len(in_confidence_t2_exact) / len(t1))
 
     plt.hist(t1, bins=20)
     plt.title("Randomized Trial")
     plt.xlabel("Coverage")
     plt.ylabel("Trials")
+    plt.axvline(min_bound, label="p=.05", color="blue", linestyle="-")
     plt.axvline(min_bound_95_exact, label="p=.05", color="black", linestyle="-")
     plt.show()
     plt.hist(t2, bins=20)
     plt.title("Randomized Trial- Simplified Binning")
     plt.xlabel("Coverage")
     plt.ylabel("Trials")
+    plt.axvline(min_bound, label="p=.05", color="blue", linestyle="-")
     plt.axvline(min_bound_95_exact, label="p=.05", color="black", linestyle="-")
     plt.show()
 
@@ -249,5 +239,6 @@ if __name__ == "__main__":
     plt.title("Simplified Binning Full PDF")
     plt.xlabel("Coverage")
     plt.ylabel("Probability")
+    plt.axvline(min_bound, label="p=.05", color="blue", linestyle="-")
     plt.axvline(min_bound_95_exact, label="p=.05", color="black", linestyle="-")
     plt.show()

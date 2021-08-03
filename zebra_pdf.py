@@ -29,6 +29,13 @@ def compute_probability_coverage_greater_than_v2(coverage, genome_length, mean_r
     # Uses the closed form for mean and variance to assign p values
     mean, std_dev = simplified_algebra_correct(genome_length, mean_read_length, num_reads)
 
+    # Using the buckets has some issues when the coverage comes out to exactly 0, exactly 1, or exactly 1 / num_buckets
+    # we'll have to be careful to address these properly.
+    if std_dev == 0:
+        if coverage <= mean:
+            return 0
+        return 1
+
     zscore = (mean-coverage) / std_dev
     return norm.cdf(zscore)
 

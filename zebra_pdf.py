@@ -24,7 +24,7 @@ if __name__ == "__main__":
     NUM_TRIALS = 1000
 
 
-def compute_probability_coverage_greater_than_v2(coverage, genome_length, mean_read_length, num_reads):
+def compute_probability_coverage_less_than(coverage, genome_length, mean_read_length, num_reads):
     mean_read_length = ceil(mean_read_length)
     # Uses the closed form for mean and variance to assign p values
     mean, std_dev = simplified_algebra_correct(genome_length, mean_read_length, num_reads)
@@ -40,7 +40,7 @@ def compute_probability_coverage_greater_than_v2(coverage, genome_length, mean_r
     return norm.cdf(zscore)
 
 
-def compute_probability_coverage_greater_than(coverage, genome_length, mean_read_length, num_reads):
+def compute_probability_coverage_less_than_exact(coverage, genome_length, mean_read_length, num_reads):
     mean_read_length = ceil(mean_read_length)
 
     # Builds the pdf with the dynamic programming algorithm

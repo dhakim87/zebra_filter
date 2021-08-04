@@ -17,9 +17,9 @@ import copy
 
 if __name__ == "__main__":
     # Modify to plot coverage for different scenarios
-    GENOME_LENGTH = 32892
-    READ_LENGTH = 149
-    NUM_READS = 600
+    GENOME_LENGTH = 3111642
+    READ_LENGTH = 138
+    NUM_READS = 36670
     # Modify number of trials done in empirical simulations
     NUM_TRIALS = 1000
 
@@ -36,7 +36,7 @@ def compute_probability_coverage_less_than(coverage, genome_length, mean_read_le
             return 0
         return 1
 
-    zscore = (mean-coverage) / std_dev
+    zscore = (coverage-mean) / std_dev
     return norm.cdf(zscore)
 
 
@@ -171,6 +171,9 @@ def simplified_algebra_correct(genome_length, read_length, num_reads):
 if __name__ == "__main__":
     import numpy as np
     import matplotlib.pyplot as plt
+
+    # print(compute_probability_coverage_less_than(0.5906, GENOME_LENGTH, READ_LENGTH, NUM_READS))
+    # exit(0)
 
     num_buckets = ceil(GENOME_LENGTH / READ_LENGTH)
 

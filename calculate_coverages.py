@@ -61,7 +61,7 @@ def calculate_coverages(input, output, database):
                 gotu_total_length_dict[gotu] += length
                 # Count exact duplicates
                 gotu_dups = pcr_dups_dict[gotu]
-                if (location,length) not in gotu_dups:
+                if (location, length) not in gotu_dups:
                     gotu_dups[(location, length)] = 1
                 else:
                     gotu_dups[(location, length)] += 1
@@ -114,7 +114,7 @@ def calculate_coverages(input, output, database):
     # Calculate coverage percent
     cov["coverage_ratio"] = cov.apply(func= lambda x : x["covered_length"]/x["total_length"], axis=1)
     cov["p_coverage"] = cov.apply(func = lambda x : compute_probability_coverage_less_than(
-        x["coverage_ratio"], x["total_length"], x["mean_read_len"], x["num_reads"] - x["estimated_pcr_dumps"]), axis=1)
+        x["coverage_ratio"], x["total_length"], x["mean_read_len"], x["num_reads"] - x["estimated_pcr_dups"]), axis=1)
     cov = cov.loc[:,["covered_length","total_length","coverage_ratio","strain", "num_reads", "mean_read_len", "estimated_pcr_dups", "p_coverage"]]
 
     ##############

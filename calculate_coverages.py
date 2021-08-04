@@ -115,7 +115,7 @@ def calculate_coverages(input, output, database):
     cov["coverage_ratio"] = cov.apply(func= lambda x : x["covered_length"]/x["total_length"], axis=1)
     cov["p_coverage"] = cov.apply(func = lambda x : compute_probability_coverage_less_than(
         x["coverage_ratio"], x["total_length"], x["mean_read_len"], x["num_reads"] - x["estimated_pcr_dumps"]), axis=1)
-    cov = cov.loc[:,["covered_length","total_length","coverage_ratio","strain", "num_reads", "mean_read_len", "p_coverage"]]
+    cov = cov.loc[:,["covered_length","total_length","coverage_ratio","strain", "num_reads", "mean_read_len", "estimated_pcr_dups", "p_coverage"]]
 
     ##############
     # Write output #

@@ -157,9 +157,12 @@ def simplified_algebra_correct(genome_length, read_length, num_reads):
     mean_buckets_covered = n * (1 - (1 - (1/n)) ** x)
     variance_buckets_covered = n * (1 - 1/n)**x + n**2 * (1 - 1/n) * (1 - 2/n) ** x - n**2 * (1 - 1 / n) ** (2 * x)
 
-    if (variance_buckets_covered <= 0):
+    # This happens when num_reads == 1
+    if variance_buckets_covered <= 0:
+        if num_reads != 1:
+            print("Error, unexpected low variance, inputs:", genome_length, read_length, num_reads)
         variance_buckets_covered = 0
-        print("Error, low variance, inputs: ", genome_length, read_length, num_reads)
+
     std_dev = sqrt(variance_buckets_covered)
 
     return mean_buckets_covered / n, std_dev / n

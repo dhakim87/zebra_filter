@@ -23,11 +23,15 @@ def calculate_coverages(input, output, database):
     gotu_total_reads_dict = defaultdict(int)
     gotu_total_length_dict = defaultdict(int)
     gotu_total_pcr_dups_dict = defaultdict(int)
-    file_list = glob(input + "/*.sam")
-    file_list_gz = glob(input + "/*.sam.gz")
-    file_list_xz = glob(input + "/*.sam.xz")
 
-    file_list = file_list + file_list_gz + file_list_xz
+    if path.isdir(input):
+        file_list = glob(input + "/*.sam")
+        file_list_gz = glob(input + "/*.sam.gz")
+        file_list_xz = glob(input + "/*.sam.xz")
+
+        file_list = file_list + file_list_gz + file_list_xz
+    else:
+        file_list = [input]
     for samfile in file_list:
         open_sam_file = None
         if samfile.endswith(".sam"):

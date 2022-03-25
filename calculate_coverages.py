@@ -10,14 +10,66 @@ import lzma
 from cover import SortedRangeList
 from zebra_pdf import compute_probability_coverage_less_than
 
+
+def _read_db(database):
+    md = pd.read_table(database).loc[:,["#genome","total_length","unique_name"]]
+    md.columns = ["gotu","total_length","strain"]
+    md = md.set_index("gotu")
+    return md
+
+
+def _build_cov_dataframe(gotu_dict, gotu_total_reads_dict, gotu_total_pcr_dups_dict, gotu_total_length_dict, md):
+    #####################
+    # Calculate coverages#
+    #####################
+    num_reads = []
+    mean_read_length = []
+    estimated_pcr_dups = []
+    for k in gotu_dict.keys():
+        num_read = gotu_total_reads_dict[k]
+        estimated_pcr_dup = gotu_total_pcr_dups_dict[k]
+        total_read_length = gotu_total_length_dict[k]
+        mean_read_len = 0
+        if total_read_length > 0:
+            mean_read_len = total_read_length / num_read
+        num_reads.append(num_read)
+        estimated_pcr_dups.append(estimated_pcr_dup)
+        mean_read_length.append(mean_read_len)
+
+    # Make dataframe from dictionary of coverages of each contig
+    cov = pd.DataFrame(
+        {
+            "gotu": list(gotu_dict.keys()),
+            "covered_length": [x.compute_length() for x in gotu_dict.values()],
+            "num_reads": num_reads,
+            "estimated_pcr_dups": estimated_pcr_dups,
+            "mean_read_len": mean_read_length
+        }
+    )
+    cov = cov.set_index("gotu")
+    cov = cov.sort_values("covered_length", ascending=False)
+    # Add genome metadata
+    cov = cov.join(md, how="left")
+    # Calculate coverage percent
+    cov["coverage_ratio"] = cov.apply(func= lambda x : x["covered_length"]/x["total_length"], axis=1)
+    cov["p_coverage"] = cov.apply(func = lambda x : compute_probability_coverage_less_than(
+        x["coverage_ratio"], x["total_length"], x["mean_read_len"], x["num_reads"] - x["estimated_pcr_dups"]), axis=1)
+    cov = cov.loc[:,["covered_length","total_length","coverage_ratio","strain", "num_reads", "mean_read_len", "estimated_pcr_dups", "p_coverage"]]
+    return cov
+
+
 @click.command()
 @click.option('-i',"--input", required=True, help="Input: Directory of sam files (files must end in .sam).")
 @click.option('-o',"--output", required=True, help='Output: file name for list of coverages.')
 @click.option('-d',"--database", default="databases/WoL/metadata.tsv", help='WoL genome metadata file.',show_default=True)
-
-def calculate_coverages(input, output, database):
+@click.option('-a','--accum', default=False, is_flag=True, help='Write separate cumulative coverage files after each sam file')
+def calculate_coverages(input, output, database, accum):
     ###################################
-    #Calculate coverage of each contig#
+    # Get information from database                #
+    ###################################
+    md = _read_db(database)
+    ###################################
+    # Calculate coverage of each contig#
     ###################################
     gotu_dict = defaultdict(SortedRangeList)
     gotu_total_reads_dict = defaultdict(int)
@@ -32,6 +84,8 @@ def calculate_coverages(input, output, database):
         file_list = file_list + file_list_gz + file_list_xz
     else:
         file_list = [input]
+
+    files_processed = 0
     for samfile in file_list:
         open_sam_file = None
         if samfile.endswith(".sam"):
@@ -75,51 +129,23 @@ def calculate_coverages(input, output, database):
             unique_reads = len(pcr_dups_dict[gotu_key])
             gotu_total_pcr_dups_dict[gotu_key] += all_reads - unique_reads
 
+        files_processed += 1
+        if accum:
+            full_path = path.abspath(output)
+            dir = path.dirname(full_path)
+            file = path.basename(full_path)
+            fname, ext = path.splitext(file)
+            new_file = fname + "_" + str(files_processed)
+            new_file += ext
+            output_name = path.join(dir, new_file)
 
-    ###################################
-    # Get information from database                #
-    ###################################
-    md = pd.read_table(database).loc[:,["#genome","total_length","unique_name"]]
-    md.columns = ["gotu","total_length","strain"]
-    md = md.set_index("gotu")
+            accum_cov = _build_cov_dataframe(gotu_dict, gotu_total_reads_dict, gotu_total_pcr_dups_dict, gotu_total_length_dict, md)
+            accum_cov.to_csv(output_name, sep='\t')
 
     #####################
     # Calculate coverages#
     #####################
-
-    num_reads = []
-    mean_read_length = []
-    estimated_pcr_dups = []
-    for k in gotu_dict.keys():
-        num_read = gotu_total_reads_dict[k]
-        estimated_pcr_dup = gotu_total_pcr_dups_dict[k]
-        total_read_length = gotu_total_length_dict[k]
-        mean_read_len = 0
-        if total_read_length > 0:
-            mean_read_len = total_read_length / num_read
-        num_reads.append(num_read)
-        estimated_pcr_dups.append(estimated_pcr_dup)
-        mean_read_length.append(mean_read_len)
-
-    # Make dataframe from dictionary of coverages of each contig
-    cov = pd.DataFrame(
-        {
-            "gotu": list(gotu_dict.keys()),
-            "covered_length": [x.compute_length() for x in gotu_dict.values()],
-            "num_reads": num_reads,
-            "estimated_pcr_dups": estimated_pcr_dups,
-            "mean_read_len": mean_read_length
-        }
-    )
-    cov = cov.set_index("gotu")
-    cov = cov.sort_values("covered_length", ascending=False)
-    # Add genome metadata
-    cov = cov.join(md, how="left")
-    # Calculate coverage percent
-    cov["coverage_ratio"] = cov.apply(func= lambda x : x["covered_length"]/x["total_length"], axis=1)
-    cov["p_coverage"] = cov.apply(func = lambda x : compute_probability_coverage_less_than(
-        x["coverage_ratio"], x["total_length"], x["mean_read_len"], x["num_reads"] - x["estimated_pcr_dups"]), axis=1)
-    cov = cov.loc[:,["covered_length","total_length","coverage_ratio","strain", "num_reads", "mean_read_len", "estimated_pcr_dups", "p_coverage"]]
+    cov = _build_cov_dataframe(gotu_dict, gotu_total_reads_dict, gotu_total_pcr_dups_dict, gotu_total_length_dict, md)
 
     ##############
     # Write output #

@@ -36,6 +36,11 @@ def _build_cov_dataframe(gotu_dict, gotu_total_reads_dict, gotu_total_pcr_dups_d
         estimated_pcr_dups.append(estimated_pcr_dup)
         mean_read_length.append(mean_read_len)
 
+    print(gotu_dict.keys())
+    print([x.compute_length() for x in gotu_dict.values()])
+    print(num_reads)
+    print(estimated_pcr_dups)
+    print(mean_read_length)
     # Make dataframe from dictionary of coverages of each contig
     cov = pd.DataFrame(
         {
@@ -63,7 +68,8 @@ def _build_cov_dataframe(gotu_dict, gotu_total_reads_dict, gotu_total_pcr_dups_d
 @click.option('-o',"--output", required=True, help='Output: file name for list of coverages.')
 @click.option('-d',"--database", default="databases/WoL/metadata.tsv", help='WoL genome metadata file.',show_default=True)
 @click.option('-a','--accum', default=False, is_flag=True, help='Write separate cumulative coverage files after each sam file')
-def calculate_coverages(input, output, database, accum):
+@click.option('-s','--split', default=-1, help='Split sam every s reads')
+def calculate_coverages(input, output, database, accum, split):
     ###################################
     # Get information from database                #
     ###################################
@@ -87,6 +93,8 @@ def calculate_coverages(input, output, database, accum):
 
     files_processed = 0
     for samfile in file_list:
+        readcount = 0
+        last_read_id = None
         open_sam_file = None
         if samfile.endswith(".sam"):
             open_sam_file = open(samfile.strip(), 'r')
@@ -104,10 +112,32 @@ def calculate_coverages(input, output, database, accum):
             raise IOError("Unrecognized file extension on '%s'." % samfile)
 
         pcr_dups_dict = defaultdict(dict)
+
         with open_sam_file:
             for line in open_sam_file:
                 # Get values for contig, location, and length
                 linesplit= line.split()
+                read_id = linesplit[0]
+                if read_id != last_read_id:
+                    last_read_id = read_id
+                    readcount += 1
+                    if split > 0 and accum and readcount > split and readcount % split == 1:
+                        for gotu_key in pcr_dups_dict:
+                            all_reads = sum(pcr_dups_dict[gotu_key].values())
+                            unique_reads = len(pcr_dups_dict[gotu_key])
+                            gotu_total_pcr_dups_dict[gotu_key] += all_reads - unique_reads
+
+                        full_path = path.abspath(output)
+                        dir = path.dirname(full_path)
+                        file = path.basename(full_path)
+                        fname, ext = path.splitext(file)
+                        new_file = fname + "_" + str(files_processed) + "_" + str(readcount-1)
+                        new_file += ext
+                        output_name = path.join(dir, new_file)
+
+                        accum_cov = _build_cov_dataframe(gotu_dict, gotu_total_reads_dict, gotu_total_pcr_dups_dict, gotu_total_length_dict, md)
+                        accum_cov.to_csv(output_name, sep='\t')
+
                 gotu = linesplit[2]
                 location = int(linesplit[3])
                 # Get sum of lengths in CIGAR string. Counting deletions as alignment because they should be small
